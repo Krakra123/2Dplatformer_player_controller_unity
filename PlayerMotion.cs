@@ -7,26 +7,28 @@ public class PlayerMotion : MonoBehaviour
     Rigidbody2D thisRigidbody;
     BoxCollider2D thisCollider;
 
-    [Header("Ground")]
-    public LayerMask groundMask;
-    public bool onGround;
-
     private float desiredtVelocityX;
 
     [HideInInspector] public int inputDirectionX;
+    [HideInInspector] public bool inputJump;
+
+    [Header("Ground")]
+    public LayerMask groundMask;
+    public bool onGround;
 
     [Header("Running")]
     public float runningMaxSpeed;
     [Range(.1f, 50f)] public float runningSpeedAcceleration;
     [Range(.1f, 50f)] public float runningSpeedDeceleration;
     [Range(.1f, 50f)] public float runningSpeedTurn;
-
+    
     [Header("Jumping")]
     public float jumpHeight;
     public float gravityScale;
     [Range(1f, 10f)] public float onAirDownGravityScale;
     [Range(.1f, 50f)] public float onAirSpeedAcceleration;
     [Range(.1f, 50f)] public float onAirSpeedControl;
+    [Range(0f, 5f)] public float variableJumpScale;
 
     private float movementAcceleration;
     private float movementDeceleration;
@@ -42,6 +44,8 @@ public class PlayerMotion : MonoBehaviour
     {
         OnGroundCheck();
 
+        Jumping();
+
         desiredtVelocityX = inputDirectionX * runningMaxSpeed;
     }
 
@@ -53,20 +57,16 @@ public class PlayerMotion : MonoBehaviour
     }
 
     //Call in Update()
-    public void Run(float inputMovement)
+    public void Move(float input)
     {
-        inputDirectionX = (int)Mathf.Sign(inputMovement);
-        if (inputMovement == 0) inputDirectionX = 0;
+        inputDirectionX = (int)Mathf.Sign(input);
+        if (input == 0) inputDirectionX = 0;
     }
 
-    //Call when press jump button
-    public void Jump()
+    //Call in Update()
+    public void Jump(bool input)
     {
-        Vector2 _velocity = thisRigidbody.velocity;
-
-        _velocity.y = jumpHeight;
-
-        thisRigidbody.velocity = _velocity;
+        inputJump = input;
     }
 
     private void OnGroundCheck()
@@ -94,6 +94,34 @@ public class PlayerMotion : MonoBehaviour
 
         float velocityChangeSpeed = MovementVelocityChangeSpeed();
         _velocity.x = Mathf.MoveTowards(_velocity.x, desiredtVelocityX, velocityChangeSpeed);
+
+        thisRigidbody.velocity = _velocity;
+    }
+
+    private void Jumping()
+    {
+        Vector2 _velocity = thisRigidbody.velocity;
+
+        bool variableJumpReset = true;
+
+        if (onGround)
+        {
+            variableJumpReset = true;
+
+            if (inputJump)
+            {
+                _velocity.y = jumpHeight;
+            }
+        }
+        else
+        {
+            if (!inputJump && variableJumpReset) variableJumpReset = false;
+
+            if (!variableJumpReset)
+            {
+                _velocity.y += variableJumpScale * gravityScale * Physics2D.gravity.y * Time.deltaTime;
+            }
+        }
 
         thisRigidbody.velocity = _velocity;
     }
