@@ -5,70 +5,134 @@ using UnityEngine;
 public class PlayerMotion : MonoBehaviour
 {
     Rigidbody2D thisRigidbody;
+    BoxCollider2D thisCollider;
 
-    Vector2 velocity;
+    [Header("Ground")]
+    public LayerMask groundMask;
+    public bool onGround;
+
+    private float desiredtVelocityX;
 
     [HideInInspector] public int inputDirectionX;
 
     [Header("Running")]
     public float runningMaxSpeed;
-    [Range(.1f, 100f)] public float runningSpeedAcceleration;
-    [Range(.1f, 100f)] public float runningSpeedDeceleration;
-    [Range(.1f, 100f)] public float runningSpeedTurn;
-    
+    [Range(.1f, 50f)] public float runningSpeedAcceleration;
+    [Range(.1f, 50f)] public float runningSpeedDeceleration;
+    [Range(.1f, 50f)] public float runningSpeedTurn;
+
     [Header("Jumping")]
     public float jumpHeight;
+    public float gravityScale;
+    [Range(1f, 10f)] public float onAirDownGravityScale;
+    [Range(.1f, 50f)] public float onAirSpeedAcceleration;
+    [Range(.1f, 50f)] public float onAirSpeedControl;
 
-    float movementAcceleration;
-    float movementDeceleration;
-    float movementTurnSpeed;
-
-    float desiredtVelocityX;
+    private float movementAcceleration;
+    private float movementDeceleration;
+    private float movementTurnSpeed;
 
     private void Start()
     {
         thisRigidbody = GetComponent<Rigidbody2D>();
+        thisCollider = GetComponent<BoxCollider2D>();
     }
 
+    private void Update()
+    {
+        OnGroundCheck();
+
+        desiredtVelocityX = inputDirectionX * runningMaxSpeed;
+    }
+
+    private void FixedUpdate()
+    {
+        Movement();
+
+        Gravity();
+    }
+
+    //Call in Update()
     public void Run(float inputMovement)
     {
         inputDirectionX = (int)Mathf.Sign(inputMovement);
         if (inputMovement == 0) inputDirectionX = 0;
     }
 
-    private void Update()
+    //Call when press jump button
+    public void Jump()
     {
-        desiredtVelocityX = inputDirectionX * runningMaxSpeed;
+        Vector2 _velocity = thisRigidbody.velocity;
+
+        _velocity.y = jumpHeight;
+
+        thisRigidbody.velocity = _velocity;
     }
 
-    private void FixedUpdate()
+    private void OnGroundCheck()
     {
-        velocity = thisRigidbody.velocity;
+        float groundCheckThick = .1f;
+        float groundCheckOffset = .1f;
 
-        movementAcceleration = runningSpeedAcceleration;
-        movementDeceleration = runningSpeedDeceleration;
-        movementTurnSpeed = runningSpeedTurn;
+        Vector2[] groundCheckCorner = new Vector2[2];
+        groundCheckCorner[0] = transform.position + (Vector3)thisCollider.offset + new Vector3(-thisCollider.size.x / 2 + groundCheckOffset, -thisCollider.size.y / 2 - groundCheckOffset);
+        groundCheckCorner[1] = transform.position + (Vector3)thisCollider.offset + new Vector3(+thisCollider.size.x / 2 - groundCheckOffset, -thisCollider.size.y / 2 - groundCheckOffset - groundCheckThick);
 
-        float velocityXChangeSpeed = 0f;
+        if (Physics2D.OverlapArea(groundCheckCorner[0], groundCheckCorner[1], groundMask))
+        {
+            onGround = true;
+        }
+        else
+        {
+            onGround = false;
+        }
+    }
+
+    private void Movement()
+    {
+        Vector2 _velocity = thisRigidbody.velocity;
+
+        float velocityChangeSpeed = MovementVelocityChangeSpeed();
+        _velocity.x = Mathf.MoveTowards(_velocity.x, desiredtVelocityX, velocityChangeSpeed);
+
+        thisRigidbody.velocity = _velocity;
+    }
+
+    private void Gravity()
+    {
+        if (!onGround && thisRigidbody.velocity.y < 0)
+        {
+            thisRigidbody.gravityScale = gravityScale * onAirDownGravityScale;
+
+            return;
+        }
+
+        thisRigidbody.gravityScale = gravityScale;
+    }
+
+    private float MovementVelocityChangeSpeed()
+    {
+        movementAcceleration = onGround ? runningSpeedAcceleration : onAirSpeedAcceleration;
+        movementDeceleration = onGround ? runningSpeedDeceleration : onAirSpeedControl;
+        movementTurnSpeed = (onGround ? runningSpeedTurn : onAirSpeedControl) * 2;
+
+        float result = 0f;
         if (inputDirectionX != 0)
         {
-            if (Mathf.Sign(inputDirectionX) != Mathf.Sign(velocity.x))
+            if (Mathf.Sign(inputDirectionX) != Mathf.Sign(thisRigidbody.velocity.x))
             {
-                velocityXChangeSpeed = movementTurnSpeed * Time.deltaTime;
+                result = movementTurnSpeed * Time.deltaTime;
             }
             else
             {
-                velocityXChangeSpeed = movementAcceleration * Time.deltaTime;
+                result = movementAcceleration * Time.deltaTime;
             }
         }
         else
         {
-            velocityXChangeSpeed = movementDeceleration * Time.deltaTime;
+            result = movementDeceleration * Time.deltaTime;
         }
 
-        velocity.x = Mathf.MoveTowards(velocity.x, desiredtVelocityX, velocityXChangeSpeed);
-        Debug.Log(velocity.x);
-
-        thisRigidbody.velocity = velocity;
+        return result;
     }
 }

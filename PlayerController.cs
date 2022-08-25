@@ -4,19 +4,24 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    PlayerMotion thisMotion;
+    PlayerMotion motion;
 
     float inputHorizontal;
 
     private void Start()
     {
-        thisMotion = GetComponent<PlayerMotion>();
+        motion = GetComponent<PlayerMotion>();
     }
 
     private void Update()
     {
         inputHorizontal = Input.GetAxisRaw("Horizontal");
 
-        thisMotion.Run(inputHorizontal);
+        motion.Run(inputHorizontal);
+
+        if (Input.GetKeyDown(KeyCode.Space) && motion.onGround)
+        {
+            motion.Jump();
+        }
     }
 }
