@@ -39,7 +39,7 @@ public class PlayerController : MonoBehaviour
     [Range(0f, .3f)] public float jumpBuffer;
     private float bufferTimeCounter;
     private bool earlyJumpInput = false;
-    public float terminalVelocity;
+    public float terminalVelocity = -10000f;
 
     private bool isJumping;
 
@@ -73,6 +73,10 @@ public class PlayerController : MonoBehaviour
         Movement();
 
         GravityCalculation();
+
+        Vector2 _velocity = thisRigidbody.velocity;
+        _velocity.y = Mathf.Clamp(_velocity.y, terminalVelocity, Mathf.Infinity);
+        thisRigidbody.velocity = _velocity;
     }
 
     private void OnGroundCheck()
