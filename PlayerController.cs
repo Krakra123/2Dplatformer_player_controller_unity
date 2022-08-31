@@ -27,6 +27,7 @@ public class PlayerController : MonoBehaviour
     [Header("Jumping")]
     public float jumpHeight;
     public float gravityScale;
+    private bool canJump;
     [Range(1f, 10f)] public float onAirDownGravityScale;
     [Range(.1f, 50f)] public float onAirSpeedAcceleration;
     [Range(.1f, 50f)] public float onAirSpeedControl;
@@ -110,66 +111,68 @@ public class PlayerController : MonoBehaviour
 
     private void JumpingCalculation()
     {
-        Vector2 _velocity = thisRigidbody.velocity;
+        // Coyote Time
+        if (onGround) coyoteTimeCounter = coyoteTime;
+        else coyoteTimeCounter -= Time.deltaTime;
 
-        if (!onGround)
-        {
-            coyoteTimeCounter -= Time.deltaTime;
-        }
+        canJump = (coyoteTimeCounter >= 0);
 
-        if (inputJump && coyoteTimeCounter < 0f && _velocity.y <= 0f) earlyJumpInput = true;
-        if (earlyJumpInput)
+        // Jump Buffer
+        if (!earlyJumpInput) bufferTimeCounter = jumpBuffer;
+        else bufferTimeCounter -= Time.deltaTime;
+
+        if (isJumping && onGround && thisRigidbody.velocity.y <= 0f) isJumping = false;
+
+        if (inputJump)
         {
-            bufferTimeCounter -= Time.deltaTime;
+            if (canJump)
+            {
+                if (!isJumping) Jump(jumpHeight);
+            }
+            else
+            {
+                earlyJumpInput = true;
+            }
         }
 
         if (isJumping)
         {
-            if (!inputJumpHold && _velocity.y > 0 && !variableJumpDragDownStart) variableJumpDragDownStart = true;
+            if (!inputJumpHold && thisRigidbody.velocity.y > 0 && !variableJumpDragDownStart) variableJumpDragDownStart = true;
             if (variableJumpDragDownStart)
             {
-                _velocity.y += variableJumpCutOff * gravityScale * Physics2D.gravity.y * Time.deltaTime;
-            }
-
-            if (_velocity.y <= 0f && onGround)
-            {
-                isJumping = false;
+                DragDown(variableJumpCutOff * gravityScale * Physics2D.gravity.y);
             }
         }
-
-        if (inputJump)
-        {
-            if (coyoteTimeCounter >= 0f && !isJumping)
-            {
-                Jump(ref _velocity);
-            }
-        }
-
-        if (earlyJumpInput)
-        {
-            if (onGround && bufferTimeCounter >= 0f)
-            {
-                earlyJumpInput = false;
-
-                Jump(ref _velocity);
-            }
-        }
-        if (onGround)
+        else
         {
             variableJumpDragDownStart = false;
-            coyoteTimeCounter = coyoteTime;
-            bufferTimeCounter = jumpBuffer;
-            earlyJumpInput = false;
         }
 
+        if (canJump && earlyJumpInput)
+        {
+            if (bufferTimeCounter >= 0)
+            {
+                Jump(jumpHeight);
+            }
+
+            earlyJumpInput = false;
+        }
+    }
+
+    private void DragDown(float _gravity)
+    {
+        Vector2 _velocity = thisRigidbody.velocity;
+        _velocity.y += _gravity * Time.deltaTime;
         thisRigidbody.velocity = _velocity;
     }
 
-    void Jump(ref Vector2 velocity)
+    public void Jump(float jumpForce)
     {
         isJumping = true;
 
-        velocity.y = jumpHeight;
+        Vector2 _velocity = thisRigidbody.velocity;
+        _velocity.y = jumpForce;
+        thisRigidbody.velocity = _velocity;
     }
 
     private void GravityCalculation()
