@@ -14,23 +14,25 @@ public class PlayerController : MonoBehaviour
     private bool inputJump;
     private bool inputJumpHold;
 
-    [Header("Ground")]
+    [Header("Ground Check")]
     public LayerMask groundLayerMask;
     [HideInInspector] public bool onGround;
+    public Vector2 groundCheckCenterOffset;
+    public float groundCheckRadius;
 
     [Header("Running")]
     public float runningMaxSpeed;
-    [Range(.1f, 50f)] public float runningSpeedAcceleration;
-    [Range(.1f, 50f)] public float runningSpeedDeceleration;
-    [Range(.1f, 50f)] public float runningSpeedTurn;
+    [Range(.1f, 10f)] public float runningSpeedAcceleration;
+    [Range(.1f, 10f)] public float runningSpeedDeceleration;
+    [Range(.1f, 10f)] public float runningSpeedTurn;
 
     [Header("Jumping")]
     public float jumpHeight;
     public float gravityScale;
     private bool canJump;
     [Range(1f, 10f)] public float onAirDownGravityScale;
-    [Range(.1f, 50f)] public float onAirSpeedAcceleration;
-    [Range(.1f, 50f)] public float onAirSpeedControl;
+    [Range(.1f, 10f)] public float onAirSpeedAcceleration;
+    [Range(.1f, 10f)] public float onAirSpeedControl;
     [Range(0f, 5f)] public float variableJumpCutOff;
     private bool variableJumpDragDownStart = false;
 
@@ -62,18 +64,18 @@ public class PlayerController : MonoBehaviour
         inputJump = Input.GetButtonDown(jumpInputButton);
         inputJumpHold = Input.GetButton(jumpInputButton);
 
-        OnGroundCheck();
+        desiredtVelocityX = inputDirectionX * runningMaxSpeed;
 
         JumpingCalculation();
-
-        desiredtVelocityX = inputDirectionX * runningMaxSpeed;
     }
 
     private void FixedUpdate()
     {
-        Movement();
+        OnGroundCheck();
 
         GravityCalculation();
+
+        Movement();
 
         Vector2 _velocity = thisRigidbody.velocity;
         _velocity.y = Mathf.Clamp(_velocity.y, terminalVelocity, Mathf.Infinity);
@@ -82,21 +84,19 @@ public class PlayerController : MonoBehaviour
 
     private void OnGroundCheck()
     {
-        float groundCheckThick = Physics2D.defaultContactOffset * 2f;
-        float groundCheckOffset = .1f;
+        float offset = Physics2D.defaultContactOffset;
+        float maxRayLength = 2 * groundCheckRadius - offset;
+        float rayDirection = Mathf.Sign(thisRigidbody.velocity.x);
+        Vector3 upperRayOrigin = transform.position + (Vector3)groundCheckCenterOffset - Vector3.right * rayDirection * groundCheckRadius - new Vector3(-offset * rayDirection, offset);
+        Vector3 groundCheckRayOrigin = transform.position + (Vector3)groundCheckCenterOffset - Vector3.right * rayDirection * groundCheckRadius - new Vector3(-offset * rayDirection, 2f * offset);
 
-        Vector2[] groundCheckCorner = new Vector2[2];
-        groundCheckCorner[0] = transform.position + (Vector3)thisCollider.offset + new Vector3(-thisCollider.size.x / 2 + groundCheckOffset, -thisCollider.size.y / 2 - groundCheckOffset);
-        groundCheckCorner[1] = transform.position + (Vector3)thisCollider.offset + new Vector3(+thisCollider.size.x / 2 - groundCheckOffset, -thisCollider.size.y / 2 - groundCheckOffset - groundCheckThick);
+        float rayLength = maxRayLength;
+        RaycastHit2D upperRayCast = Physics2D.Raycast(upperRayOrigin, Vector3.right * rayDirection, maxRayLength, groundLayerMask);
+        if (upperRayCast.collider != null) rayLength = Vector3.Distance(upperRayCast.point, upperRayOrigin);
 
-        if (Physics2D.OverlapArea(groundCheckCorner[0], groundCheckCorner[1], groundLayerMask))
-        {
-            onGround = true;
-        }
-        else
-        {
-            onGround = false;
-        }
+        RaycastHit2D groundCheckRayCast = Physics2D.Raycast(groundCheckRayOrigin, Vector3.right * rayDirection, rayLength - offset, groundLayerMask);
+
+        onGround = groundCheckRayCast.collider != null;
     }
 
     private void Movement()
@@ -137,7 +137,7 @@ public class PlayerController : MonoBehaviour
 
         if (isJumping)
         {
-            if (!inputJumpHold && thisRigidbody.velocity.y > 0 && !variableJumpDragDownStart) variableJumpDragDownStart = true;
+            if (!inputJumpHold && thisRigidbody.velocity.y > 0f && !variableJumpDragDownStart) variableJumpDragDownStart = true;
             if (variableJumpDragDownStart)
             {
                 DragDown(variableJumpCutOff * gravityScale * Physics2D.gravity.y);
@@ -189,9 +189,9 @@ public class PlayerController : MonoBehaviour
 
     private float MovementVelocityChangeSpeed()
     {
-        movementAcceleration = onGround ? runningSpeedAcceleration : onAirSpeedAcceleration;
-        movementDeceleration = onGround ? runningSpeedDeceleration : onAirSpeedControl;
-        movementTurnSpeed = (onGround ? runningSpeedTurn : onAirSpeedControl) * 2;
+        movementAcceleration = (onGround ? runningSpeedAcceleration : onAirSpeedAcceleration) * runningMaxSpeed;
+        movementDeceleration = (onGround ? runningSpeedDeceleration : onAirSpeedControl) * runningMaxSpeed;
+        movementTurnSpeed = ((onGround ? runningSpeedTurn : onAirSpeedControl) * 2) * runningMaxSpeed;
 
         float result = 0f;
         if (inputDirectionX != 0)
