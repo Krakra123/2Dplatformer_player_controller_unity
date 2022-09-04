@@ -4,15 +4,26 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    public class Inputs
+    {
+        public float movementDirection;
+        public bool jump;
+        public bool jumpHold;
+
+        public Inputs(float movementInput, bool jumpInput, bool jumpHoldInput)
+        {
+            movementDirection = movementInput;
+            jump = jumpInput;
+            jumpHold = jumpHoldInput;
+        }
+    }
+
     Rigidbody2D thisRigidbody;
-    BoxCollider2D thisCollider;
 
     [Header("Input")]
     public string movementInputAxis;
     public string jumpInputButton;
-    private int inputDirectionX;
-    private bool inputJump;
-    private bool inputJumpHold;
+    [HideInInspector] private Inputs inputs = new Inputs(0f, false, false);
 
     [Header("Ground Check")]
     public LayerMask groundLayerMask;
@@ -30,19 +41,21 @@ public class PlayerController : MonoBehaviour
     public float jumpHeight;
     public float gravityScale;
     private bool canJump;
-    [Range(1f, 10f)] public float onAirDownGravityScale;
+    [Range(1f, 5f)] public float onAirDownGravityScale;
     [Range(.1f, 10f)] public float onAirSpeedAcceleration;
     [Range(.1f, 10f)] public float onAirSpeedControl;
     [Range(0f, 5f)] public float variableJumpCutOff;
     private bool variableJumpDragDownStart = false;
 
     [Header("Other")]
-    [Range(0f, .3f)] public float coyoteTime;
+    [Range(0f, .25f)] public float coyoteTime;
     private float coyoteTimeCounter;
-    [Range(0f, .3f)] public float jumpBuffer;
+    [Range(0f, .25f)] public float jumpBuffer;
     private float bufferTimeCounter;
     private bool earlyJumpInput = false;
     public float terminalVelocity = -10000f;
+    public int maxJumpsNumber = 1;
+    private int jumpsNumber;
 
     private bool isJumping;
 
@@ -55,24 +68,23 @@ public class PlayerController : MonoBehaviour
     private void Start()
     {
         thisRigidbody = GetComponent<Rigidbody2D>();
-        thisCollider = GetComponent<BoxCollider2D>();
     }
 
     private void Update()
     {
-        inputDirectionX = (int)Input.GetAxisRaw(movementInputAxis);
-        inputJump = Input.GetButtonDown(jumpInputButton);
-        inputJumpHold = Input.GetButton(jumpInputButton);
+        inputs.movementDirection = (int)Input.GetAxisRaw(movementInputAxis);
+        inputs.jump = Input.GetButtonDown(jumpInputButton);
+        inputs.jumpHold = Input.GetButton(jumpInputButton);
 
-        desiredtVelocityX = inputDirectionX * runningMaxSpeed;
+        desiredtVelocityX = inputs.movementDirection * runningMaxSpeed;
+
+        OnGroundCheck();
 
         JumpingCalculation();
     }
 
     private void FixedUpdate()
     {
-        OnGroundCheck();
-
         GravityCalculation();
 
         Movement();
@@ -115,19 +127,25 @@ public class PlayerController : MonoBehaviour
         if (onGround) coyoteTimeCounter = coyoteTime;
         else coyoteTimeCounter -= Time.deltaTime;
 
-        canJump = (coyoteTimeCounter >= 0);
+        if (!isJumping) canJump = (coyoteTimeCounter >= 0);
 
         // Jump Buffer
         if (!earlyJumpInput) bufferTimeCounter = jumpBuffer;
         else bufferTimeCounter -= Time.deltaTime;
 
-        if (isJumping && onGround && thisRigidbody.velocity.y <= 0f) isJumping = false;
-
-        if (inputJump)
+        if (isJumping && onGround && thisRigidbody.velocity.y <= 0f)
         {
+            isJumping = false;
+            jumpsNumber = maxJumpsNumber;
+        }
+
+        if (inputs.jump)
+        {
+            if (jumpsNumber <= 0) canJump = false;
+
             if (canJump)
             {
-                if (!isJumping) Jump(jumpHeight);
+                Jump(jumpHeight);
             }
             else
             {
@@ -137,7 +155,7 @@ public class PlayerController : MonoBehaviour
 
         if (isJumping)
         {
-            if (!inputJumpHold && thisRigidbody.velocity.y > 0f && !variableJumpDragDownStart) variableJumpDragDownStart = true;
+            if (!inputs.jumpHold && thisRigidbody.velocity.y > 0f && !variableJumpDragDownStart) variableJumpDragDownStart = true;
             if (variableJumpDragDownStart)
             {
                 DragDown(variableJumpCutOff * gravityScale * Physics2D.gravity.y);
@@ -169,6 +187,9 @@ public class PlayerController : MonoBehaviour
     public void Jump(float jumpForce)
     {
         isJumping = true;
+        jumpsNumber--;
+
+        variableJumpDragDownStart = false;
 
         Vector2 _velocity = thisRigidbody.velocity;
         _velocity.y = jumpForce;
@@ -194,9 +215,9 @@ public class PlayerController : MonoBehaviour
         movementTurnSpeed = ((onGround ? runningSpeedTurn : onAirSpeedControl) * 2) * runningMaxSpeed;
 
         float result = 0f;
-        if (inputDirectionX != 0)
+        if (inputs.movementDirection != 0)
         {
-            if (Mathf.Sign(inputDirectionX) != Mathf.Sign(thisRigidbody.velocity.x))
+            if (Mathf.Sign(inputs.movementDirection) != Mathf.Sign(thisRigidbody.velocity.x))
             {
                 result = movementTurnSpeed * Time.deltaTime;
             }
